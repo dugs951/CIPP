@@ -9,12 +9,14 @@ import {
   Password,
   PasswordOutlined,
   Key,
+  Edit,
   Security,
   FindInPage,
   Shield,
   Archive,
   AutoMode,
   Recycling,
+  ManageAccounts,
 } from "@mui/icons-material";
 
 const Page = () => {
@@ -23,13 +25,69 @@ const Page = () => {
 
   const actions = [
     {
-      label: "View in InTune",
+      label: "View in Intune",
       link: `https://intune.microsoft.com/${tenantFilter}/#view/Microsoft_Intune_Devices/DeviceSettingsMenuBlade/~/overview/mdmDeviceId/[id]`,
       color: "info",
       icon: <EyeIcon />,
       target: "_blank",
       multiPost: false,
       external: true,
+    },
+    {
+      label: "Change Primary User",
+      type: "POST",
+      icon: <ManageAccounts />,
+      url: "/api/ExecDeviceAction",
+      data: {
+        GUID: "id",
+        Action: "!users",
+      },
+      fields: [
+        {
+          type: "autoComplete",
+          name: "user",
+          label: "Select User",
+          multiple: false,
+          creatable: false,
+          api: {
+            url: "/api/ListGraphRequest",
+            data: {
+              Endpoint: "users",
+              $select: "id,displayName,userPrincipalName",
+              $top: 999,
+              $count: true,
+            },
+            queryKey: "ListUsersAutoComplete",
+            dataKey: "Results",
+            labelField: (user) => `${user.displayName} (${user.userPrincipalName})`,
+            valueField: "id",
+            addedField: {
+              userPrincipalName: "userPrincipalName",
+            },
+            showRefresh: true,
+          },
+        },
+      ],
+      confirmText: "Select the User to set as the primary user for [deviceName]",
+    },
+    {
+      label: "Rename Device",
+      type: "POST",
+      icon: <Edit />,
+      url: "/api/ExecDeviceAction",
+      data: {
+        GUID: "id",
+        Action: "setDeviceName",
+      },
+      confirmText: "Enter the new name for the device",
+      fields: [
+        {
+          type: "textField",
+          name: "input",
+          label: "New Device Name",
+          required: true,
+        },
+      ],
     },
     {
       label: "Sync Device",
@@ -40,7 +98,7 @@ const Page = () => {
         GUID: "id",
         Action: "syncDevice",
       },
-      confirmText: "Are you sure you want to sync this device?",
+      confirmText: "Are you sure you want to sync [deviceName]?",
     },
     {
       label: "Reboot Device",
@@ -51,7 +109,7 @@ const Page = () => {
         GUID: "id",
         Action: "rebootNow",
       },
-      confirmText: "Are you sure you want to reboot this device?",
+      confirmText: "Are you sure you want to reboot [deviceName]?",
     },
     {
       label: "Locate Device",
@@ -62,17 +120,18 @@ const Page = () => {
         GUID: "id",
         Action: "locateDevice",
       },
-      confirmText: "Are you sure you want to locate this device?",
+      confirmText: "Are you sure you want to locate [deviceName]?",
     },
     {
-      label: "Retrieve LAPs password",
+      label: "Retrieve LAPS password",
       type: "POST",
       icon: <Password />,
       url: "/api/ExecGetLocalAdminPassword",
       data: {
         GUID: "azureADDeviceId",
       },
-      confirmText: "Are you sure you want to retrieve the local admin password?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to retrieve the local admin password for [deviceName]?",
     },
     {
       label: "Rotate Local Admin Password",
@@ -83,17 +142,31 @@ const Page = () => {
         GUID: "id",
         Action: "RotateLocalAdminPassword",
       },
-      confirmText: "Are you sure you want to rotate the password for this device?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to rotate the password for [deviceName]?",
     },
     {
-      label: "Retrieve Bitlocker Keys",
+      label: "Retrieve BitLocker Keys",
       type: "POST",
       icon: <Key />,
       url: "/api/ExecGetRecoveryKey",
       data: {
         GUID: "azureADDeviceId",
       },
-      confirmText: "Are you sure you want to retrieve the Bitlocker keys?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to retrieve the BitLocker keys for [deviceName]?",
+    },
+    {
+      label: "Retrieve File Vault Key",
+      type: "POST",
+      icon: <Security />,
+      url: "/api/ExecDeviceAction",
+      data: {
+        GUID: "id",
+        Action: "getFileVaultKey",
+      },
+      condition: (row) => row.operatingSystem === "macOS",
+      confirmText: "Are you sure you want to retrieve the file vault key for [deviceName]?",
     },
     {
       label: "Windows Defender Full Scan",
@@ -105,7 +178,7 @@ const Page = () => {
         Action: "WindowsDefenderScan",
         quickScan: false,
       },
-      confirmText: "Are you sure you want to perform a full scan on this device?",
+      confirmText: "Are you sure you want to perform a full scan on [deviceName]?",
     },
     {
       label: "Windows Defender Quick Scan",
@@ -117,7 +190,7 @@ const Page = () => {
         Action: "WindowsDefenderScan",
         quickScan: true,
       },
-      confirmText: "Are you sure you want to perform a quick scan on this device?",
+      confirmText: "Are you sure you want to perform a quick scan on [deviceName]?",
     },
     {
       label: "Update Windows Defender",
@@ -128,7 +201,8 @@ const Page = () => {
         GUID: "id",
         Action: "windowsDefenderUpdateSignatures",
       },
-      confirmText: "Are you sure you want to update the Windows Defender signatures for this device?",
+      confirmText:
+        "Are you sure you want to update the Windows Defender signatures for [deviceName]?",
     },
     {
       label: "Generate logs and ship to MEM",
@@ -137,23 +211,12 @@ const Page = () => {
       url: "/api/ExecDeviceAction",
       data: {
         GUID: "id",
-        Action: "CreateDeviceLogCollectionRequest",
+        Action: "createDeviceLogCollectionRequest",
       },
-      confirmText: "Are you sure you want to generate logs and ship these to MEM?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText:
+        "Are you sure you want to generate logs for device [deviceName] and ship these to MEM?",
     },
-    /*
-    {
-      label: "Rename device",
-      type: "POST",
-      icon: null,
-      url: "/api/ExecDeviceAction",
-      data: {
-        GUID: "id",
-        Action: "setDeviceName",
-      },
-      confirmText: "Enter the new name for the device",
-    },
-    */
     {
       label: "Fresh Start (Remove user data)",
       type: "POST",
@@ -164,7 +227,8 @@ const Page = () => {
         Action: "cleanWindowsDevice",
         keepUserData: false,
       },
-      confirmText: "Are you sure you want to Fresh Start this device?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to Fresh Start [deviceName]?",
     },
     {
       label: "Fresh Start (Do not remove user data)",
@@ -176,7 +240,8 @@ const Page = () => {
         Action: "cleanWindowsDevice",
         keepUserData: true,
       },
-      confirmText: "Are you sure you want to Fresh Start this device?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to Fresh Start [deviceName]?",
     },
     {
       label: "Wipe Device, keep enrollment data",
@@ -189,7 +254,8 @@ const Page = () => {
         keepUserData: false,
         keepEnrollmentData: true,
       },
-      confirmText: "Are you sure you want to wipe this device, and retain enrollment data?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to wipe [deviceName], and retain enrollment data?",
     },
     {
       label: "Wipe Device, remove enrollment data",
@@ -202,7 +268,8 @@ const Page = () => {
         keepUserData: false,
         keepEnrollmentData: false,
       },
-      confirmText: "Are you sure you want to wipe this device, and remove enrollment data?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to wipe [deviceName], and remove enrollment data?",
     },
     {
       label: "Wipe Device, keep enrollment data, and continue at powerloss",
@@ -216,7 +283,9 @@ const Page = () => {
         keepUserData: false,
         useProtectedWipe: true,
       },
-      confirmText: "Are you sure you want to wipe this device? This will retain enrollment data. Continuing at powerloss may cause boot issues if wipe is interrupted.",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText:
+        "Are you sure you want to wipe [deviceName]? This will retain enrollment data. Continuing at powerloss may cause boot issues if wipe is interrupted.",
     },
     {
       label: "Wipe Device, remove enrollment data, and continue at powerloss",
@@ -230,7 +299,9 @@ const Page = () => {
         keepUserData: false,
         useProtectedWipe: true,
       },
-      confirmText: "Are you sure you want to wipe this device? This will also remove enrollment data. Continuing at powerloss may cause boot issues if wipe is interrupted.",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText:
+        "Are you sure you want to wipe [deviceName]? This will also remove enrollment data. Continuing at powerloss may cause boot issues if wipe is interrupted.",
     },
     {
       label: "Autopilot Reset",
@@ -243,7 +314,19 @@ const Page = () => {
         keepUserData: "false",
         keepEnrollmentData: "true",
       },
-      confirmText: "Are you sure you want to Autopilot Reset this device?",
+      condition: (row) => row.operatingSystem === "Windows",
+      confirmText: "Are you sure you want to Autopilot Reset [deviceName]?",
+    },
+    {
+      label: "Delete device",
+      type: "POST",
+      icon: <Recycling />,
+      url: "/api/ExecDeviceAction",
+      data: {
+        GUID: "id",
+        Action: "delete",
+      },
+      confirmText: "Are you sure you want to delete [deviceName]?",
     },
     {
       label: "Retire device",
@@ -254,7 +337,7 @@ const Page = () => {
         GUID: "id",
         Action: "retire",
       },
-      confirmText: "Are you sure you want to retire this device?",
+      confirmText: "Are you sure you want to retire [deviceName]?",
     },
   ];
 
@@ -266,8 +349,13 @@ const Page = () => {
   return (
     <CippTablePage
       title={pageTitle}
-      apiUrl="/api/ListDevices"
+      apiUrl="/api/ListGraphRequest"
+      apiData={{
+        Endpoint: "deviceManagement/managedDevices",
+      }}
+      apiDataKey="Results"
       actions={actions}
+      queryKey={`MEMDevices-${tenantFilter}`}
       offCanvas={offCanvas}
       simpleColumns={[
         "deviceName",

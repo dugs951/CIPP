@@ -1,7 +1,6 @@
 import { useRouter } from "next/router";
 import { Box, Container, Stack, Button, SvgIcon, Typography, Card } from "@mui/material";
 import ArrowLeftIcon from "@mui/icons-material/ArrowLeft";
-import Head from "next/head";
 import { CippHead } from "../CippComponents/CippHead";
 const CippPageCard = (props) => {
   const {
@@ -11,6 +10,7 @@ const CippPageCard = (props) => {
     cardSize = "xl",
     hideTitleText = false,
     hideBackButton = false,
+    noTenantInHead = false,
     infoBar,
   } = props;
   const router = useRouter();
@@ -21,7 +21,7 @@ const CippPageCard = (props) => {
 
   return (
     <>
-      <CippHead title={title} />
+      <CippHead title={title} noTenant={noTenantInHead} />
       <Box
         sx={{
           flexGrow: 1,
